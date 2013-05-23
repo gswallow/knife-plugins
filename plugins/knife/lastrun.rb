@@ -35,10 +35,10 @@ class Chef
       end
 
       def format(name, lasttime, status, runtime)
-        case status
-        when "Successful"
+        case status.downcase
+        when "success"
           color = :green
-        when "Failed"
+        when "failure"
           color = :red
         else
           color = :white
@@ -47,7 +47,7 @@ class Chef
         msg = String.new
         msg << ui.color(name.ljust(40, ' '), :cyan)
         msg << lasttime.ljust(20, ' ')
-        msg << ui.color(status.ljust(12, ' '), color)
+        msg << ui.color(status.capitalize.ljust(12, ' '), color)
         msg << runtime.to_s.rjust(10, ' ')
         msg
       end
@@ -70,18 +70,19 @@ class Chef
                  ui.error "This should never happen: #{n.name} has no FQDN attribute."
               end
 
-              if n.automatic_attrs.include?('status')
-                status = n.automatic['status'].first['status'].to_s
-                run_time = n.automatic['status'].first['run_time'].to_i
-                last_time = Time.parse(n.automatic['status'].first['start_time']).strftime("%Y-%m-%d %H:%M:%S")
+              if n.attribute?('log')
+                last = n['log'].first
+                status = last['status'].to_s
+                elapsed_time = last['elapsed_time'].to_i
+                last_time = Time.parse(last['start_time']).strftime("%Y-%m-%d %H:%M:%S")
               else
                 status = "No status"
                 last_time = "Unknown"
-                run_time = 0
+                elapsed_time = 0
               end
 
-              unless config[:failed] and status != "Failed"
-                nodes << { :name => n.name, :last_time => last_time, :status => status, :run_time => run_time }
+              unless config[:failed] and status.downcase != "failed"
+                nodes << { :name => n.name, :last_time => last_time, :status => status, :elapsed_time => elapsed_time }
               end
             end
           end
@@ -94,8 +95,8 @@ class Chef
         # Header
         ui.msg "#{nodes.count} items found"
         ui.msg("\n")
-        output(header("Name", "Last time", "Status", "Run time"))
-        output(header("====", "=========", "======", "========"))
+        output(header("Name", "Last time", "Status", "Elapsed time"))
+        output(header("====", "=========", "======", "============"))
 
         # Default by name unless -t
         if config[:time]
@@ -105,7 +106,7 @@ class Chef
         end
 
         nodes.each do |n|
-          output(format(n[:name], n[:last_time], n[:status], n[:run_time]))
+          output(format(n[:name], n[:last_time], n[:status], n[:elapsed_time]))
         end
       end
 
