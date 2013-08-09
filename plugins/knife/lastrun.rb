@@ -1,5 +1,6 @@
 require 'date'
 require 'time'
+require 'json'
 require 'chef/knife'
 require 'chef/knife/core/node_presenter'
 
@@ -25,12 +26,23 @@ class Chef
         :long => "--failed",
         :description => "Show failed nodes only"
 
+      option :log,
+        :short => "-l",
+        :long => "--log",
+        :description => "Show the most recent log entry"
+
       def header(name, lasttime, status, runtime)
         msg = String.new
         msg << ui.color(name.ljust(40, ' '), :bold)
         msg << ui.color(lasttime.ljust(20, ' '), :bold)
         msg << ui.color(status.ljust(12, ' '), :bold)
         msg << ui.color(runtime.rjust(10, ' '), :bold)
+        msg
+      end
+
+      def log_separator(name)
+        msg = String.new
+        msg << ui.color(name.ljust(40, ' '), :bold)
         msg
       end
 
@@ -50,6 +62,11 @@ class Chef
         msg << ui.color(status.capitalize.ljust(12, ' '), color)
         msg << runtime.to_s.rjust(10, ' ')
         msg
+      end
+
+      def pp_json(log)
+        pretty = JSON.pretty_generate(log)
+        pretty
       end
 
       def run
@@ -82,7 +99,7 @@ class Chef
               end
 
               unless config[:failed] and status.downcase != "failed"
-                nodes << { :name => n.name, :last_time => last_time, :status => status, :elapsed_time => elapsed_time }
+                nodes << { :name => n.name, :last => last, :last_time => last_time, :status => status, :elapsed_time => elapsed_time }
               end
             end
           end
@@ -107,6 +124,20 @@ class Chef
 
         nodes.each do |n|
           output(format(n[:name], n[:last_time], n[:status], n[:elapsed_time]))
+        end
+
+        if config[:log]
+          nodes.each do |n|
+            output ""
+            output(log_separator("========================================"))
+            output(log_separator(n[:name]))
+            output(log_separator("========================================"))
+            output(pp_json n[:last]['updated_resources'])
+            output ""
+            output "Updated versions"
+            output ""
+            output(pp_json n[:last]['updated_versions'])
+          end
         end
       end
 

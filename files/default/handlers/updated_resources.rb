@@ -19,9 +19,15 @@ module SimpleReport
   class UpdatedResources < Chef::Handler
 
     def report
-      ignored_resources = [ "/var/cache/chef/handlers", "apt_get_update" ]
+      ignored_resources = [ "/var/chef/handlers",
+                            "apt_get_update",
+                            "HipChat::NotifyRoom",
+                            "SimpleReport::UpdatedResources",
+                            "custom_plugins"
+                          ]
 
       report_resources = Hash.new
+      updated_versions = Hash.new
 
       header
 
@@ -30,7 +36,15 @@ module SimpleReport
       run_status.updated_resources.each do |r|
         if !ignored_resources.include?(r.name)
           report_resources[r.name] = r.class.to_s.gsub("Chef::Resource::", "")
-          Chef::Log.info "#{report_resources[r.name]} #{r.name} #{r.action}"
+          log_message = [ report_resources[r.name], r.name ]
+
+          unless updated_version(r).empty?
+            log_message << "(#{updated_version(r)})"
+            updated_versions[r.name] = updated_version(r) unless updated_version(r).empty?
+          end
+
+          log_message << r.action
+          Chef::Log.info log_message.join(" ")
         end
       end
 
@@ -39,6 +53,7 @@ module SimpleReport
                   :start_time        => run_status.start_time,
                   :end_time          => run_status.end_time,
                   :updated_resources => report_resources,
+                  :updated_versions  => updated_versions,
                   :exception         => ( run_status.success? ? "none" : run_status.formatted_exception ) }
 
       log = Array.new
@@ -48,7 +63,19 @@ module SimpleReport
       end
 
       node.set['log'] = log
-      node.save
+      original_node = Chef::Node.load(node.name)
+      original_node.set['log'] = log
+      original_node.save
+    end
+
+    def updated_version(resource)
+      version = ""
+      if resource.respond_to?(:revision)
+        resource.revision.nil? ? version = "" : version = resource.revision
+      elsif resource.respond_to?(:version)
+        resource.version.nil? ? version = "" : version = resource.version
+      end
+      version
     end
 
     def header
