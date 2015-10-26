@@ -31,9 +31,10 @@ class Chef
         :long => "--log",
         :description => "Show the most recent log entry"
 
-      def header(name, lasttime, status, runtime)
+      def header(name, roles, lasttime, status, runtime)
         msg = String.new
         msg << ui.color(name.ljust(40, ' '), :bold)
+        msg << ui.color(roles.ljust(50, ' '), :bold)
         msg << ui.color(lasttime.ljust(20, ' '), :bold)
         msg << ui.color(status.ljust(12, ' '), :bold)
         msg << ui.color(runtime.rjust(10, ' '), :bold)
@@ -46,7 +47,7 @@ class Chef
         msg
       end
 
-      def format(name, lasttime, status, runtime)
+      def format(name, roles, lasttime, status, runtime)
         case status.downcase
         when "success"
           color = :green
@@ -58,6 +59,7 @@ class Chef
 
         msg = String.new
         msg << ui.color(name.ljust(40, ' '), :cyan)
+        msg << roles.ljust(50, ' ')
         msg << lasttime.ljust(20, ' ')
         msg << ui.color(status.capitalize.ljust(12, ' '), color)
         msg << runtime.to_s.rjust(10, ' ')
@@ -87,6 +89,9 @@ class Chef
                  ui.error "This should never happen: #{n.name} has no FQDN attribute."
               end
 
+              roles = n.roles.to_a.reject { |r| r =~ /base$/ }.join(',')
+              roles = roles.empty? ? "none" : roles
+
               if n.attribute?('log')
                 last = n['log'].first
                 status = last['status'].to_s
@@ -99,7 +104,7 @@ class Chef
               end
 
               unless config[:failed] and status.downcase != "failed"
-                nodes << { :name => n.name, :last => last, :last_time => last_time, :status => status, :elapsed_time => elapsed_time }
+                nodes << { :name => n.name, :roles => roles, :last => last, :last_time => last_time, :status => status, :elapsed_time => elapsed_time }
               end
             end
           end
@@ -112,8 +117,8 @@ class Chef
         # Header
         ui.msg "#{nodes.count} items found"
         ui.msg("\n")
-        output(header("Name", "Last time", "Status", "Elapsed time"))
-        output(header("====", "=========", "======", "============"))
+        output(header("Name", "Roles", "Last time", "Status", "Elapsed time"))
+        output(header("====", "=====", "=========", "======", "============"))
 
         # Default by name unless -t
         if config[:time]
@@ -123,7 +128,7 @@ class Chef
         end
 
         nodes.each do |n|
-          output(format(n[:name], n[:last_time], n[:status], n[:elapsed_time]))
+          output(format(n[:name], n[:roles], n[:last_time], n[:status], n[:elapsed_time]))
         end
 
         if config[:log]
